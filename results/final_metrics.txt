@@ -1,0 +1,12 @@
+TRAINING METRICS
+====================
+
+Total Games: 5000
+Player 1 Wins: 189
+Player 2 Wins: 210
+
+Player 1 Win Rate: 3.78%
+Player 2 Win Rate: 4.20%
+
+Final Epsilon: 0.0100
+Q-table Entries: 3906547
