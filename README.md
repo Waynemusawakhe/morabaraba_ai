@@ -1,10 +1,12 @@
-# Morabaraba AI - Nine Men's Morris with Q-Learning
+# Morabaraba AI: Q-Learning for a Southern African Board Game
 
-A complete implementation of the Morabaraba (Nine Men's Morris) board game with a PyGame GUI and Q-Learning AI training system.
+A playable implementation of Morabaraba (the twelve-piece Southern African member of the Morris family) with a PyGame interface and a tabular Q-learning agent trained by self-play. Built for ITRI616 Artificial Intelligence (NWU Honours, 2026), framed with Mitchell's Task, Experience and Performance (TEP) model.
+
+![Rolling win rate during training](results/graphs/rolling_winrate.png)
 
 ## Project Structure
 
-- **`environment.py`** - Core game engine (450+ lines)
+- **`environment.py`** - Core game engine (~400 lines)
   - Game state management and rule enforcement
   - RL interface: `get_state()`, `get_actions()`, `rl_step(action)`
   - UI interface: `step(position)` for manual play
@@ -15,35 +17,30 @@ A complete implementation of the Morabaraba (Nine Men's Morris) board game with 
     - Mill formation and capture (can't capture from mills unless forced)
     - Win conditions (opponent has <3 pieces or no legal moves)
 
-- **`agent.py`** - Q-Learning agent (170 lines)
+- **`agent.py`** - Q-Learning agent (~180 lines)
   - Epsilon-greedy action selection
   - Q-value table learning
   - Epsilon decay (0.995 per episode, minimum 0.01)
 
-- **`train.py`** - Self-play training loop (120 lines)
+- **`train.py`** - Self-play training loop (~125 lines)
   - 5000 episodes of self-play
   - Automatic data logging to `results/` folder:
     - `training_data.csv` - Episode stats (episode, winner, epsilon)
     - `training_log.txt` - Detailed logs per episode
   - Progress printed every 10 episodes
 
-- **`main.py`** - PyGame GUI (250 lines)
+- **`main.py`** - PyGame GUI (~330 lines)
   - Interactive board visualization
   - Click to place/move pieces
   - Automatic capture prompts
   - Game-over detection and display
 
-- **`evaluate.py`** - Game evaluation tools
-  - Performance metrics
-  - Match statistics
-
-- **`utils.py`** - Helper functions
-  - Common utilities
+- **`evaluate.py`** - Evaluation against a random opponent
+  - `--games`, `--seed` and `--watch` options
+  - Writes per-game CSV and a win/loss/draw summary
 
 - **`requirements.txt`** - Dependencies
-  - pygame==2.6.1
-  - numpy
-  - Other standard libraries
+  - pygame 2.6.1, numpy, pandas, matplotlib
 
 ## Running the Game
 
@@ -67,10 +64,10 @@ python train.py
 
 ### 3. Evaluate Trained Agent
 ```bash
-python evaluate.py
+python evaluate.py --games 200 --seed 2026   # against a random opponent
+python evaluate.py --watch                   # watch one game in the terminal
+python results/graphs.py                     # regenerate training charts
 ```
-- Performance analysis of trained model
-- Match statistics and win rates
 
 ## Game Rules
 
@@ -108,19 +105,39 @@ python evaluate.py
 - Tuples: `("place", position)`, `("move", position)`, `("capture", position)`, `("select", position)`
 - `get_actions()` returns only legal actions for current state
 
-### Reward Structure
-- +1 for winning an episode
-- -1 for losing
-- 0 for neutral transitions
-- Bonus for phase transitions (encouraging progression)
+### Reward Structure (as implemented in `environment.rl_step`)
+- Place a piece: +0.5, or +2 if it forms a mill
+- Move a piece: +1, or +2 if it forms a mill
+- Capture: +1, or +10 if it wins the game
+- Reaching the movement phase: +5
+- Winning move: +10
+- Illegal action: -1
 
-## Training Results
+## Results
 
-After 5000 episodes:
-- Epsilon decays from 1.0 to ~0.0037 (min 0.01)
-- Win distribution tracked per player
-- Episode statistics logged automatically
-- Q-table learns game strategy through self-play
+**Training (5,000 self-play episodes):** epsilon decayed from 1.0 to its 0.01 floor by about episode 920. Only 399 of 5,000 games (8%) produced a winner within the 500-step cap. The Q-table grew to about 3.9 million state–action entries.
+
+**Evaluation against a random opponent** (`python evaluate.py --games 200 --seed 2026`, agent alternates first move; greedy play):
+
+| Agent | Wins | Losses | Draws (500-step cap) |
+|---|---|---|---|
+| Untrained (all Q = 0) | 5% | 4% | 91% |
+| Trained, 5,000 episodes | 7% | 5% | 88% |
+
+The trained agent edges the random baseline, but the gap is small. Most games end at the step cap.
+
+![Epsilon decay](results/graphs/epsilon_decay.png)
+
+## Known limitations and next steps
+
+Analysis of the results points to four causes:
+
+1. **No perspective flip in self-play.** Both players update one Q-table, but the update adds the *next* player's best value as if it were the mover's own. A negamax-style target (negate the future value when the turn passes) or a board view canonicalised to the side to move would fix this.
+2. **Rewards encourage long games.** Every normal move earns +1, so prolonging the game is rewarded. Making ordinary moves neutral and adding an explicit loss penalty should push the agent towards captures and wins.
+3. **State space is too large for a table.** Millions of states seen once each cannot generalise in 5,000 episodes. Next would be function approximation (a small neural network or hand-built features such as mills, open mills, mobility and piece difference) or adding a shallow minimax search.
+4. **Weak evaluation signal.** Against a random opponent most games hit the step cap even for strong play. Evaluating against a greedy capture-first heuristic opponent would separate good from bad policies more clearly.
+
+A quick experiment applying fix 1 alone (canonical board plus negamax target) did not improve the win rate. That suggests fixes 2–3 matter more and should be done together.
 
 ## Technical Details
 
@@ -134,12 +151,16 @@ After 5000 episodes:
   - Epsilon decay = 0.995
   - Minimum epsilon = 0.01
 
-## Files Generated During Training
+## Files Generated
 
 ```
 results/
-├── training_data.csv      # Episode statistics
-└── training_log.txt       # Detailed logs
+├── training_data.csv        # Episode, winner, epsilon
+├── training_log.txt         # Per-episode log
+├── qtable.pkl               # Trained Q-table (not committed: large)
+├── evaluation_results.csv   # Per-game evaluation results
+├── evaluation_summary.txt   # Win/loss/draw summary
+└── graphs/                  # Created by results/graphs.py
 ```
 
 ## Troubleshooting

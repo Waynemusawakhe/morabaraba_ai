@@ -1,3 +1,9 @@
 venv/
+venv311/
+.venv/
 __pycache__/
 *.pyc
+results/qtable*.pkl
+results/*_2*.csv
+results/*_2*.txt
+.vscode/
